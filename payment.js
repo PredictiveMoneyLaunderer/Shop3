@@ -37,17 +37,17 @@ function checkSpendLimit(amountUSD) {
   spendTracker.total += amountUSD;
 }
 
-const ZERODEV_PROJECT_ID = process.env.ZERODEV_PROJECT_ID;
-const ZERODEV_RPC_URL = process.env.ZERODEV_RPC_URL;
-
-if (!ZERODEV_PROJECT_ID) {
-  throw new Error('ZERODEV_PROJECT_ID is not set. Add it to your .env file.');
-}
-if (!ZERODEV_RPC_URL) {
-  throw new Error('ZERODEV_RPC_URL is not set. Add it to your .env file.');
-}
-
 function getWalletClient() {
+  const ZERODEV_PROJECT_ID = process.env.ZERODEV_PROJECT_ID;
+  const ZERODEV_RPC_URL = process.env.ZERODEV_RPC_URL;
+
+  if (!ZERODEV_PROJECT_ID) {
+    throw new Error('ZERODEV_PROJECT_ID is not set. Add it to your .env file.');
+  }
+  if (!ZERODEV_RPC_URL) {
+    throw new Error('ZERODEV_RPC_URL is not set. Add it to your .env file.');
+  }
+
   const privateKey = process.env.WALLET_PRIVATE_KEY;
   if (!privateKey) throw new Error('WALLET_PRIVATE_KEY not set');
 

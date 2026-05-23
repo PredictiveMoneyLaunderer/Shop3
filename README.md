@@ -25,7 +25,13 @@ ZERODEV_RPC_URL=https://rpc.zerodev.app/api/v3/391415d7-7b73-4531-ba86-94268eced
 
 This project now uses the ZeroDev SDK `createKernelAccountClient` smart wallet flow on Base Sepolia, so payments are executed through your ZeroDev project RPC endpoint.
 
-4. Run the app:
+4. (Optional) Run the local search middleware:
+
+```bash
+npm run start:server
+```
+
+5. Run the app:
 
 ```bash
 node index.js
