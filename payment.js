@@ -3,6 +3,7 @@ const { baseSepolia } = require('viem/chains');
 const { privateKeyToAccount } = require('viem/accounts');
 const { createKernelAccountClient } = require('@zerodev/sdk');
 const axios = require('axios');
+const { withSpan, increment, gauge, timing } = require('./telemetry');
 
 // Minimal ERC-20 transfer ABI
 const ERC20_TRANSFER_ABI = [
@@ -87,31 +88,50 @@ async function handle402Payment(paymentInfo) {
   const amountUSD = parseFloat(amount);
   checkSpendLimit(amountUSD);
 
-  const { account, walletClient, publicClient } = getWalletClient();
+  return withSpan('payment.transaction', { token, chain, amount }, async () => {
+    const { account, walletClient, publicClient } = getWalletClient();
 
-  // For USDC (6 decimals)
-  const amountRaw = parseUnits(amount.toString(), 6);
+    const amountRaw = parseUnits(amount.toString(), 6);
 
-  const data = encodeFunctionData({
-    abi: ERC20_TRANSFER_ABI,
-    functionName: 'transfer',
-    args: [payTo, amountRaw],
+    const data = encodeFunctionData({
+      abi: ERC20_TRANSFER_ABI,
+      functionName: 'transfer',
+      args: [payTo, amountRaw],
+    });
+
+    let txHash;
+    try {
+      txHash = await walletClient.sendTransaction({
+        account,
+        to: USDC_ADDRESS,
+        data,
+        chain: baseSepolia,
+      });
+      increment('payment.tx.submitted', { token, chain });
+    } catch (err) {
+      increment('payment.tx.error', { token, chain, reason: 'submit_failed' });
+      throw err;
+    }
+
+    console.log(`[payment] Tx submitted: ${txHash}`);
+    console.log('[payment] Waiting for confirmation...');
+
+    const confirmStart = Date.now();
+    try {
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const confirmMs = Date.now() - confirmStart;
+      timing('payment.confirmation_ms', confirmMs, { token, chain });
+      gauge('payment.amount_usd', amountUSD, { token, chain });
+      gauge('payment.daily_spend_usd', spendTracker.total);
+      increment('payment.tx.confirmed', { token, chain });
+    } catch (err) {
+      increment('payment.tx.error', { token, chain, reason: 'confirmation_failed' });
+      throw err;
+    }
+
+    console.log(`[payment] Confirmed: ${txHash}`);
+    return txHash;
   });
-
-  const txHash = await walletClient.sendTransaction({
-    account,
-    to: USDC_ADDRESS,
-    data,
-    chain: baseSepolia,
-  });
-
-  console.log(`[payment] Tx submitted: ${txHash}`);
-  console.log('[payment] Waiting for confirmation...');
-
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-  console.log(`[payment] Confirmed: ${txHash}`);
-  return txHash;
 }
 
 // Simulate hitting a 402 endpoint (for demo — real x402 endpoints return this in headers/body)

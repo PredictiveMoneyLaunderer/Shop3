@@ -37,6 +37,41 @@ npm run start:server
 node index.js
 ```
 
+## Observability (Datadog)
+
+Shop3 is instrumented with [Datadog APM](https://www.datadoghq.com/) via `dd-trace`. All agent runs, tool calls, payments, and on-chain confirmations are traced automatically.
+
+### What's tracked
+
+| Metric | Type | Description |
+|---|---|---|
+| `shop3.agent.run.started` | count | Agent invocation started |
+| `shop3.agent.run.completed` | count | Agent completed full flow |
+| `shop3.agent.run.duration_ms` | distribution | End-to-end agent run time |
+| `shop3.tool.duration_ms` | distribution | Per-tool execution time (tag: `tool`) |
+| `shop3.search.results_count` | gauge | Number of search results returned |
+| `shop3.payment.tx.submitted` | count | On-chain tx submitted (tags: `token`, `chain`) |
+| `shop3.payment.tx.confirmed` | count | On-chain tx confirmed |
+| `shop3.payment.tx.error` | count | Payment failed (tag: `reason`) |
+| `shop3.payment.amount_usd` | gauge | USD amount paid per transaction |
+| `shop3.payment.daily_spend_usd` | gauge | Running daily spend total |
+| `shop3.payment.confirmation_ms` | distribution | Time to on-chain confirmation |
+
+APM traces cover the full `search → pay → log → publish` flow with child spans per tool call.
+
+### Setup
+
+1. Install the Datadog Agent: https://docs.datadoghq.com/agent/
+2. Add your API key to `.env`:
+
+```bash
+DD_API_KEY=your_api_key_here
+DD_AGENT_HOST=localhost   # default
+DD_AGENT_PORT=8126        # default
+```
+
+3. The agent auto-instruments on startup — no code changes needed.
+
 ## Agent Wallet
 
 The agent's smart wallet address on Base Sepolia:

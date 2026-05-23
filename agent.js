@@ -3,6 +3,7 @@ const { searchWeb } = require('./search');
 const { mockPaymentFlow, getWalletAddress } = require('./payment');
 const { logPurchase } = require('./memory');
 const { publishReceipt } = require('./publish');
+const { withSpan, increment, gauge, timing } = require('./telemetry');
 
 const client = new Anthropic();
 
@@ -73,8 +74,13 @@ async function executeTool(name, input, context) {
   switch (name) {
     case 'search_web': {
       console.log(`\n[agent] Searching: "${input.query}"`);
-      const results = await searchWeb(input.query, input.num_results ?? 5);
+      const start = Date.now();
+      const results = await withSpan('agent.tool.search_web', { query: input.query }, () =>
+        searchWeb(input.query, input.num_results ?? 5)
+      );
       context.searchResults = results;
+      timing('tool.duration_ms', Date.now() - start, { tool: 'search_web' });
+      gauge('search.results_count', results.length, { query: input.query });
       console.log(`[agent] Found ${results.length} results`);
       results.forEach((r, i) => console.log(`  ${i + 1}. ${r.title} — ${r.url}`));
       return results;
@@ -82,36 +88,45 @@ async function executeTool(name, input, context) {
 
     case 'pay_for_purchase': {
       console.log(`\n[agent] Paying for: ${input.selected_result} (${input.price})`);
-      const txHash = await mockPaymentFlow(input.selected_result, input.price);
+      const start = Date.now();
+      const txHash = await withSpan('agent.tool.pay_for_purchase', {
+        product: input.selected_result,
+        price: input.price,
+      }, () => mockPaymentFlow(input.selected_result, input.price));
       context.txHash = txHash;
       context.selectedResult = input.selected_result;
       context.price = input.price;
       context.sourceUrl = input.source_url;
+      timing('tool.duration_ms', Date.now() - start, { tool: 'pay_for_purchase' });
       return { success: true, tx_hash: txHash };
     }
 
     case 'log_to_database': {
       console.log(`\n[agent] Logging purchase to ClickHouse`);
-      await logPurchase({
-        query: input.query,
-        selectedResult: input.selected_result,
-        price: input.price,
-        txHash: input.tx_hash,
-        sourceUrl: input.source_url,
-      });
+      await withSpan('agent.tool.log_to_database', {}, () =>
+        logPurchase({
+          query: input.query,
+          selectedResult: input.selected_result,
+          price: input.price,
+          txHash: input.tx_hash,
+          sourceUrl: input.source_url,
+        })
+      );
       return { success: true };
     }
 
     case 'publish_receipt': {
       console.log(`\n[agent] Publishing receipt to cited.md`);
-      const url = await publishReceipt({
-        query: input.query,
-        selectedResult: input.selected_result,
-        price: input.price,
-        txHash: input.tx_hash,
-        sourceUrl: input.source_url,
-        searchResults: input.search_results ?? context.searchResults ?? [],
-      });
+      const url = await withSpan('agent.tool.publish_receipt', {}, () =>
+        publishReceipt({
+          query: input.query,
+          selectedResult: input.selected_result,
+          price: input.price,
+          txHash: input.tx_hash,
+          sourceUrl: input.source_url,
+          searchResults: input.search_results ?? context.searchResults ?? [],
+        })
+      );
       context.receiptUrl = url;
       return { success: true, receipt_url: url };
     }
@@ -122,6 +137,9 @@ async function executeTool(name, input, context) {
 }
 
 async function runAgent(userPrompt) {
+  const runStart = Date.now();
+  increment('agent.run.started');
+
   const walletAddress = await getWalletAddress();
   console.log(`\n[agent] Smart wallet: ${walletAddress}`);
   console.log(`[agent] Starting: "${userPrompt}"\n`);
@@ -170,6 +188,8 @@ Always complete all 4 steps: search → pay → log → publish. Do not stop ear
         .filter((b) => b.type === 'text')
         .map((b) => b.text)
         .join('\n');
+      timing('agent.run.duration_ms', Date.now() - runStart);
+      increment('agent.run.completed');
       console.log('\n[agent] Done.\n');
       console.log(finalText);
       return { summary: finalText, ...context };
