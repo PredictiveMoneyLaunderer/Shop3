@@ -4,7 +4,7 @@ const axios = require('axios');
 const { withSpan, increment, gauge, timing } = require('./telemetry');
 const { getSpendToday, recordSpend } = require('./memory');
 
-const MAX_DAILY_USD = 10;
+const MAX_DAILY_USD = parseFloat(process.env.MAX_DAILY_USD) || 10;
 
 function getCircleClient() {
   const apiKey = process.env.CIRCLE_API_KEY;
@@ -27,6 +27,26 @@ async function checkSpendLimit(amountUSD) {
   const spentToday = await getSpendToday();
   if (spentToday + amountUSD > MAX_DAILY_USD) {
     throw new Error(`Daily spend limit of $${MAX_DAILY_USD} would be exceeded (used: $${spentToday.toFixed(2)})`);
+  }
+}
+
+async function checkWalletBalance(client, amountUSD) {
+  try {
+    const res = await client.listWalletTokenBalances({ walletId: process.env.CIRCLE_WALLET_ID });
+    const balances = res.data?.tokenBalances ?? [];
+    const usdc = balances.find(
+      (b) => b.token?.symbol === 'USDC' ||
+        b.token?.tokenAddress?.toLowerCase() === process.env.USDC_TOKEN_ADDRESS?.toLowerCase()
+    );
+    const available = parseFloat(usdc?.amount ?? '0');
+    console.log(`[payment] Wallet USDC balance: $${available.toFixed(2)}`);
+    if (available < amountUSD) {
+      throw new Error(`Insufficient USDC balance: $${available.toFixed(2)} available, $${amountUSD} required`);
+    }
+  } catch (err) {
+    if (err.message.startsWith('Insufficient')) throw err;
+    // Balance check is best-effort — don't block payment if API call fails
+    console.warn(`[payment] Could not verify wallet balance (proceeding): ${err.message}`);
   }
 }
 
@@ -62,6 +82,7 @@ async function handle402Payment(paymentInfo) {
 
   return withSpan('payment.transaction', { token, chain, 'payment.amount_usd': amountUSD }, async (span) => {
     const client = getCircleClient();
+    await checkWalletBalance(client, amountUSD);
 
     let txId;
     try {
