@@ -38,9 +38,10 @@ function senso(args, apiKey) {
     env: { ...process.env, SENSO_API_KEY: apiKey },
     encoding: 'utf8',
   });
-  // Strip any ANSI escape codes before parsing
-  const clean = result.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '').trim();
-  return JSON.parse(clean);
+  // Strip any ANSI escape codes and redact the API key if it appears in the output
+  let sanitized = result.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+  sanitized = sanitized.replace(new RegExp(apiKey, 'g'), (m) => m.slice(0, 10) + '...').trim();
+  return JSON.parse(sanitized);
 }
 
 function buildReceiptMarkdown({ query, selectedResult, price, txHash, sourceUrl, searchResults }) {

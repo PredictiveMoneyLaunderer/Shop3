@@ -4,15 +4,21 @@ An autonomous Web3 shopping agent. Give it a prompt, it searches the web, picks 
 
 ## Features
 
-- **Autonomous purchasing** — Claude-powered agent handles the full search → evaluate → buy → receipt flow without human intervention
-- **On-chain payments** — USDC transfers on Base Sepolia via a ZeroDev ERC-4337 smart wallet; real blockchain transactions with verifiable tx hashes
-- **x402 payment-gated search** — local Express middleware that returns HTTP 402 Payment Required; agent pays in USDC and retries with a payment proof header, demonstrating machine-to-machine micropayments
-- **$10/day spend guard** — enforced before every payment; blocks transactions that would exceed the daily limit
-- **Purchase audit log** — every purchase written to ClickHouse with full metadata (query, product, price, tx hash, source URL)
-- **Purchase history viewer** — `node history.js [N]` queries ClickHouse and prints the last N purchases with BaseScan links
-- **Verified receipts on cited.md** — each purchase publishes a markdown receipt as a public citeable on `cited.md/shop3` via Senso, discoverable by other AI agents and search engines
-- **AI brand visibility (GEO)** — Senso knowledge base tracks how ChatGPT, Claude, Perplexity, and Gemini represent Shop3 in the agent payments space; runs Mon/Wed/Fri
-- **Datadog APM** — full distributed traces across the agent loop, per-tool spans, and custom metrics for payment success rates, confirmation times, and daily spend
+### 🧠 Agent Intelligence
+- **Autonomous Agentic Loop**: Powered by Anthropic's **Claude 3.5 Sonnet**, the agent runs a continuous "think-act" loop. It uses native tool-calling to independently decide when to search, evaluate products, execute payments, or log results.
+- **Strategic Evaluation**: Unlike simple scripts, the agent evaluates search results against user constraints (budget, reputation, and service type) before deciding to purchase.
+
+### 💸 Web3 Payments & Safety
+- **ERC-4337 Smart Wallets**: Utilizes **ZeroDev Kernel accounts** for sophisticated on-chain identity. This allows the agent to hold its own funds and sign transactions programmatically.
+- **USDC on Base Sepolia**: Facilitates real-world value transfer using stablecoins on the Base Sepolia testnet, ensuring fast and cheap transactions.
+- **Spend Guard**: A hard-coded safety mechanism that enforces a **$10/day spending limit**. This prevents the agent from runaway spending in the event of an infinite loop or adversarial prompt.
+- **x402 Micropayment Protocol**: Implements a local "Payment Required" middleware. The agent handles `402` status codes by paying the required fee on-chain and retrying the request with a verifiable payment proof header.
+
+### 📊 Transparency & Observability
+- **Purchase Audit Log**: Every transaction is recorded in **ClickHouse Cloud**, capturing the original user query, selected product, price, and the immutable blockchain transaction hash.
+- **Verified Receipts (cited.md)**: Automatically publishes public, markdown-formatted receipts via the **Senso platform**. These receipts are "citeable," making the agent's actions discoverable by search engines and other AI agents.
+- **Datadog Instrumentation**: Full observability with Datadog APM. Tracks end-to-end agent run durations, per-tool execution spans, and custom metrics for payment success rates and on-chain confirmation times.
+- **GEO Monitoring**: Integrated AI brand visibility tracking. Monitors how major LLMs (ChatGPT, Claude, Perplexity, Gemini) perceive and represent the "Shop3" brand across the web.
 
 ## Quick start
 
@@ -34,8 +40,8 @@ cp .env.example .env
 ANTHROPIC_API_KEY=        # Claude API key (required — nothing runs without this)
 NIMBLE_API_KEY=           # Web search
 WALLET_PRIVATE_KEY=       # Ethereum private key for the agent smart wallet
-ZERODEV_PROJECT_ID=391415d7-7b73-4531-ba86-94268ecedfef
-ZERODEV_RPC_URL=https://rpc.zerodev.app/api/v3/391415d7-7b73-4531-ba86-94268ecedfef/chain/84532
+ZERODEV_PROJECT_ID=       # Your ZeroDev Project ID
+ZERODEV_RPC_URL=          # Your ZeroDev RPC URL
 CLICKHOUSE_HOST=          # ClickHouse Cloud host (https://...:8443)
 CLICKHOUSE_USER=          # ClickHouse user
 CLICKHOUSE_PASSWORD=      # ClickHouse password
